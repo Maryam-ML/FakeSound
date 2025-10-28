@@ -17,7 +17,7 @@ from transformers import SchedulerType, get_scheduler
 import os
 import sys
 
-WORKSPACE_PATH = "/kaggle/working/fakesound"  # Your actual path
+WORKSPACE_PATH = '/kaggle/working/FakeSound'  # Your actual path
 os.environ['WORKSPACE_PATH'] = WORKSPACE_PATH
 sys.path.extend([WORKSPACE_PATH])
 
