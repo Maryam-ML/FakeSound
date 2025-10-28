@@ -17,9 +17,11 @@ from transformers import SchedulerType, get_scheduler
 import os
 import sys
 
+# Set the WORKSPACE_PATH to the desired directory
 WORKSPACE_PATH = '/kaggle/working/FakeSound'  # Your actual path
-os.environ['WORKSPACE_PATH'] = WORKSPACE_PATH
-sys.path.extend([WORKSPACE_PATH])
+os.environ['WORKSPACE_PATH'] = WORKSPACE_PATH  # Set the environment variable
+sys.path.extend([WORKSPACE_PATH])  # Add the path to sys.path
+
 
 from models import detection_model
 
