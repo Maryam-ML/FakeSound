@@ -248,7 +248,8 @@ class WavLM_Detection(BaseDetectionModel):
         # load the pre-trained checkpoints            pytorch_model.bin
         #checkpoint = torch.load(f"{WORKSPACE_PATH}/ckpts/WavLM-Large.pt")
         checkpoint = torch.load(f"{WORKSPACE_PATH}/ckpts/pytorch_model.bin")
-        self.cfg = WavLMConfig(checkpoint['cfg'])
+        self.cfg = WavLMConfig(checkpoint['config'])
+        #self.cfg = WavLMConfig(checkpoint['cfg'])
         self.future_extractor = WavLM(self.cfg)
         self.future_extractor.load_state_dict(checkpoint['model'])
         self.future_extractor.eval()
