@@ -147,9 +147,9 @@ def main():
     print(f"[INFO] Initializing model: {args.model_class}")
 
     
-    model = globals()[args.model_class](multi_task=args.multi_task).to(device)
+    #model = globals()[args.model_class](multi_task=args.multi_task).to(device)
 
-    #model = getattr(detection_model, args.model_class)(multi_task=args.multi_task).to(device)
+    model = getattr(detection_model, args.model_class)(multi_task=args.multi_task).to(device)
     print("[INFO] Model initialized successfully.")
 
     print(f"[INFO] Loading dataset from: {args.train_file}")
