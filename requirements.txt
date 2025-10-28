@@ -57,7 +57,7 @@ httpcore==1.0.2
 httptools==0.6.1
 httpx==0.26.0
 huggingface-hub==0.20.3
-hydra-core==1.0.7
+#hydra-core==1.0.7
 idna==3.6
 imageio==2.33.1
 importlib-metadata==7.0.1
