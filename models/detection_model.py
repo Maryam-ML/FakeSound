@@ -290,29 +290,29 @@ class WavLM_Detection(BaseDetectionModel):
             if is_fairseq:
              rep = self.future_extractor.extract_features(waveform)[0]     # fairseq
              return rep
+            else:
+                out = self.future_extractor(input_values=waveform)            # HF
+                rep = out.last_hidden_state                                   # [B, T, C]
+                return rep
         else:
-            out = self.future_extractor(input_values=waveform)            # HF
-            rep = out.last_hidden_state                                   # [B, T, C]
-            return rep
-else:
-    # return features from every layer
-    if is_fairseq:
-       rep, layer_results = self.future_extractor.extract_features(
-           waveform,
-            output_layer=getattr(self.cfg, "encoder_layers", None),
-            ret_layer_results=True
-        )
-        # fairseq gives tuples (x, ...) with x as [T, B, C] or [B, T, C] depending on build.
-        # most forks expect [B, C, T] per layer, so transpose like your original code:
-        layer_reps = [x.transpose(0, 1) for x, _ in layer_results]    # -> [B, C, T]
-        return layer_reps
-        else:
-            # HF: ask for all hidden states
-            out = self.future_extractor(input_values=waveform, output_hidden_states=True)
-            # drop embedding (index 0); keep encoder layers
-            hidden = list(out.hidden_states[1:])                          # each [B, T, C]
-            layer_reps = [h.transpose(1, 2) for h in hidden]              # -> [B, C, T] to match fairseq path
-            return layer_reps
+            # return features from every layer
+            if is_fairseq:
+                rep, layer_results = self.future_extractor.extract_features(
+                    waveform,
+                    output_layer=getattr(self.cfg, "encoder_layers", None),
+                    ret_layer_results=True
+                )
+                # fairseq gives tuples (x, ...) with x as [T, B, C] or [B, T, C] depending on build.
+                # most forks expect [B, C, T] per layer, so transpose like your original code:
+                layer_reps = [x.transpose(0, 1) for x, _ in layer_results]    # -> [B, C, T]
+                return layer_reps
+            else:
+                # HF: ask for all hidden states
+                out = self.future_extractor(input_values=waveform, output_hidden_states=True)
+                # drop embedding (index 0); keep encoder layers
+                hidden = list(out.hidden_states[1:])                          # each [B, T, C]
+                layer_reps = [h.transpose(1, 2) for h in hidden]              # -> [B, C, T] to match fairseq path
+                return layer_reps
 
       @dataclass
 class UserDirModule:
