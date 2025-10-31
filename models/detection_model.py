@@ -261,14 +261,14 @@ class WavLM_Detection(BaseDetectionModel):
             self.cfg = WavLMConfig()  # default config
 
  # --- Try loading Fairseq or fallback to Hugging Face ---
-         try:
-             print("[INFO] Trying to load Fairseq-style WavLM checkpoint...")
-             self.wavlm = WavLM(self.cfg)
-             self.wavlm.load_state_dict(checkpoint['model'], strict=False)
-             print("[SUCCESS] Loaded Fairseq WavLM checkpoint successfully.")
+        try:
+            print("[INFO] Trying to load Fairseq-style WavLM checkpoint...")
+            self.wavlm = WavLM(self.cfg)
+            self.wavlm.load_state_dict(checkpoint['model'], strict=False)
+            print("[SUCCESS] Loaded Fairseq WavLM checkpoint successfully.")
 
-         except (KeyError, TypeError):
-             print("[WARNING] Failed to load Fairseq checkpoint — falling back to Hugging Face WavLM.")
+        except (KeyError, TypeError):
+            print("[WARNING] Failed to load Fairseq checkpoint — falling back to Hugging Face WavLM.")
             from transformers import WavLMModel, WavLMConfig as HFWavLMConfig
             hf_model_id = 'microsoft/wavlm-base-plus'  # you can change this if needed
             self.wavlm = WavLMModel.from_pretrained(hf_model_id)
