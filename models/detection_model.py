@@ -245,23 +245,34 @@ class WavLM_Detection(BaseDetectionModel):
         from models.WavLM.WavLM import WavLM, WavLMConfig
 
 
-        # load the pre-trained checkpoints            pytorch_model.bin
-        #checkpoint = torch.load(f"{WORKSPACE_PATH}/ckpts/WavLM-Large.pt")
+         load the pre-trained checkpoints            pytorch_model.bin
+        checkpoint = torch.load(f"{WORKSPACE_PATH}/ckpts/WavLM-Large.pt")
         checkpoint = torch.load(f"{WORKSPACE_PATH}/ckpts/wavlm-large.pt")
-       # self.cfg = WavLMConfig(checkpoint['cfg'])
-       # if 'cfg' in checkpoint:
+        self.cfg = WavLMConfig(checkpoint['cfg'])
+        if 'cfg' in checkpoint:
             
-       # else:
-            # print("Warning: 'cfg' not found in the checkpoint.")
-           #  if 'config' in checkpoint:
-          #      self.cfg = WavLMConfig(checkpoint['config'])
-         #   else:
-        #        self.cfg = WavLMConfig()  # Use default config if neither 'cfg' nor 'config' is found
+        else:
+             print("Warning: 'cfg' not found in the checkpoint.")
+             if 'config' in checkpoint:
+                self.cfg = WavLMConfig(checkpoint['config'])
+           else:
+                self.cfg = WavLMConfig()   Use default config if neither 'cfg' nor 'config' is found
 
   
 
-        #self.cfg = WavLMConfig(checkpoint['config'])
-        self.cfg = WavLMConfig(checkpoint['cfg'])
+        self.cfg = WavLMConfig(checkpoint['config'])
+        try:
+    # Try Fairseq checkpoint (.pt)
+    self.cfg = WavLMConfig(checkpoint['cfg'])
+    self.wavlm = WavLM(self.cfg)
+    self.wavlm.load_state_dict(checkpoint['model'], strict=False)
+except (KeyError, TypeError):
+    # Fallback: Hugging Face model (no 'cfg' key)
+    from transformers import WavLMModel, WavLMConfig as HFWavLMConfig
+    hf_model_id = 'microsoft/wavlm-base-plus'  # You can change this if needed
+    self.wavlm = WavLMModel.from_pretrained(hf_model_id)
+    self.cfg = HFWavLMConfig.from_pretrained(hf_model_id)
+
 
            
 
