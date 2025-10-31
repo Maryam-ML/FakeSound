@@ -277,7 +277,7 @@ class WavLM_Detection(BaseDetectionModel):
 
         def future_extract(self, waveform, last_layer=True):
         # wav_input_16khz example torch.randn(2, 16000 * 10)
-        if last_layer:
+            if last_layer:
             # extract the representation of last layer
         if self.cfg.normalize:
                 waveform = torch.nn.functional.layer_norm(waveform, waveform.shape)
