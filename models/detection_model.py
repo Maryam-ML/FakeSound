@@ -276,11 +276,11 @@ class WavLM_Detection(BaseDetectionModel):
             print(f"[SUCCESS] Loaded Hugging Face WavLM model: {hf_model_id}")
 
         def future_extract(self, waveform, last_layer=True):
-        # wav_input_16khz example torch.randn(2, 16000 * 10)
+            # wav_input_16khz example torch.randn(2, 16000 * 10)
             if last_layer:
-            # extract the representation of last layer
-        if self.cfg.normalize:
-                waveform = torch.nn.functional.layer_norm(waveform, waveform.shape)
+               # extract the representation of last layer
+               if self.cfg.normalize:
+                  waveform = torch.nn.functional.layer_norm(waveform, waveform.shape)
             rep = self.future_extractor.extract_features(waveform)[0]
             return rep
         else:
