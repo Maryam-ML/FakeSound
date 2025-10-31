@@ -249,38 +249,33 @@ class WavLM_Detection(BaseDetectionModel):
         checkpoint = torch.load(f"{WORKSPACE_PATH}/ckpts/WavLM-Large.pt")
         checkpoint = torch.load(f"{WORKSPACE_PATH}/ckpts/wavlm-large.pt")
         self.cfg = WavLMConfig(checkpoint['cfg'])
+ # --- Check if checkpoint has configuration ---
         if 'cfg' in checkpoint:
-            
+            print("[INFO] Using Fairseq checkpoint with 'cfg' configuration.")
+            self.cfg = WavLMConfig(checkpoint['cfg'])
+        elif 'config' in checkpoint:
+            print("[INFO] Using Fairseq checkpoint with 'config' configuration.")
+            self.cfg = WavLMConfig(checkpoint['config'])
         else:
-             print("Warning: 'cfg' not found in the checkpoint.")
-             if 'config' in checkpoint:
-                self.cfg = WavLMConfig(checkpoint['config'])
-           else:
-                self.cfg = WavLMConfig()   Use default config if neither 'cfg' nor 'config' is found
+            print("[WARNING] 'cfg' not found in checkpoint — using default configuration.")
+            self.cfg = WavLMConfig()  # default config
 
-  
+ # --- Try loading Fairseq or fallback to Hugging Face ---
+         try:
+             print("[INFO] Trying to load Fairseq-style WavLM checkpoint...")
+             self.wavlm = WavLM(self.cfg)
+             self.wavlm.load_state_dict(checkpoint['model'], strict=False)
+             print("[SUCCESS] Loaded Fairseq WavLM checkpoint successfully.")
 
-        self.cfg = WavLMConfig(checkpoint['config'])
-        try:
-    # Try Fairseq checkpoint (.pt)
-    self.cfg = WavLMConfig(checkpoint['cfg'])
-    self.wavlm = WavLM(self.cfg)
-    self.wavlm.load_state_dict(checkpoint['model'], strict=False)
-except (KeyError, TypeError):
-    # Fallback: Hugging Face model (no 'cfg' key)
-    from transformers import WavLMModel, WavLMConfig as HFWavLMConfig
-    hf_model_id = 'microsoft/wavlm-base-plus'  # You can change this if needed
-    self.wavlm = WavLMModel.from_pretrained(hf_model_id)
-    self.cfg = HFWavLMConfig.from_pretrained(hf_model_id)
+         except (KeyError, TypeError):
+             print("[WARNING] Failed to load Fairseq checkpoint — falling back to Hugging Face WavLM.")
+            from transformers import WavLMModel, WavLMConfig as HFWavLMConfig
+            hf_model_id = 'microsoft/wavlm-base-plus'  # you can change this if needed
+            self.wavlm = WavLMModel.from_pretrained(hf_model_id)
+            self.cfg = HFWavLMConfig.from_pretrained(hf_model_id)
+            print(f"[SUCCESS] Loaded Hugging Face WavLM model: {hf_model_id}")
 
-
-           
-
-        self.future_extractor = WavLM(self.cfg)
-        self.future_extractor.load_state_dict(checkpoint['model'])
-        self.future_extractor.eval()
-
-    def future_extract(self, waveform, last_layer=True):
+   def future_extract(self, waveform, last_layer=True):
         # wav_input_16khz example torch.randn(2, 16000 * 10)
         if last_layer:
             # extract the representation of last layer
