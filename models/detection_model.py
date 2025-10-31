@@ -276,7 +276,7 @@ class WavLM_Detection(BaseDetectionModel):
             print(f"[SUCCESS] Loaded Hugging Face WavLM model: {hf_model_id}")
 
         def future_extract(self, waveform, last_layer=True):
-        import torch
+            import torch
 
         # optional normalize (only if cfg has that flag)
         if getattr(self.cfg, "normalize", False):
