@@ -294,18 +294,18 @@ class WavLM_Detection(BaseDetectionModel):
             out = self.future_extractor(input_values=waveform)            # HF
             rep = out.last_hidden_state                                   # [B, T, C]
             return rep
-    else:
-        # return features from every layer
-        if is_fairseq:
-            rep, layer_results = self.future_extractor.extract_features(
-                waveform,
-                output_layer=getattr(self.cfg, "encoder_layers", None),
-                ret_layer_results=True
-            )
-            # fairseq gives tuples (x, ...) with x as [T, B, C] or [B, T, C] depending on build.
-            # most forks expect [B, C, T] per layer, so transpose like your original code:
-            layer_reps = [x.transpose(0, 1) for x, _ in layer_results]    # -> [B, C, T]
-            return layer_reps
+else:
+    # return features from every layer
+    if is_fairseq:
+       rep, layer_results = self.future_extractor.extract_features(
+           waveform,
+            output_layer=getattr(self.cfg, "encoder_layers", None),
+            ret_layer_results=True
+        )
+        # fairseq gives tuples (x, ...) with x as [T, B, C] or [B, T, C] depending on build.
+        # most forks expect [B, C, T] per layer, so transpose like your original code:
+        layer_reps = [x.transpose(0, 1) for x, _ in layer_results]    # -> [B, C, T]
+        return layer_reps
         else:
             # HF: ask for all hidden states
             out = self.future_extractor(input_values=waveform, output_hidden_states=True)
