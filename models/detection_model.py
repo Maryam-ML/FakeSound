@@ -336,7 +336,7 @@ class EAT_Detection(BaseDetectionModel):
         self.future_extractor = self.future_extractor[0]
         self.future_extractor.eval()
         self.granularity = 'frame'
-   def future_extract(self, waveform):
+    def future_extract(self, waveform):
         if self.granularity == 'frame':
             feats = self.future_extractor.extract_features(waveform, padding_mask=None, mask=False, remove_extra_tokens=True)
             feats = feats['x'].squeeze(0)
