@@ -313,10 +313,11 @@ class WavLM_Detection(BaseDetectionModel):
                 hidden = list(out.hidden_states[1:])                          # each [B, T, C]
                 layer_reps = [h.transpose(1, 2) for h in hidden]              # -> [B, C, T] to match fairseq path
                 return layer_reps
+from dataclasses import dataclass
 
-      @dataclass
+@dataclass
 class UserDirModule:
-             user_dir: str
+    user_dir: str
 
 class EAT_Detection(BaseDetectionModel):
     def __init__(self, embed_dim=128, in_planes=768, multi_task=False):
@@ -336,15 +337,15 @@ class EAT_Detection(BaseDetectionModel):
         self.future_extractor.eval()
         self.granularity = 'frame'
 
-        def future_extract(self, waveform):
-            if self.granularity == 'frame':
-                feats = self.future_extractor.extract_features(waveform, padding_mask=None,mask=False, remove_extra_tokens=True)
-                feats = feats['x'].squeeze(0)
-        elif granularity == 'utterance':
-            feats = self.future_extractor.extract_features(waveforme, padding_mask=None,mask=False, remove_extra_tokens=False)
+    def future_extract(self, waveform):
+        if self.granularity == 'frame':
+            feats = self.future_extractor.extract_features(waveform, padding_mask=None, mask=False, remove_extra_tokens=True)
+            feats = feats['x'].squeeze(0)
+        elif self.granularity == 'utterance':
+            feats = self.future_extractor.extract_features(waveform, padding_mask=None, mask=False, remove_extra_tokens=False)
             feats = feats['x']
             feats = feats[:, 0].squeeze(0)
-        # only firset 500 frames needs
+            # Only first 500 frames need
             feats = feats[:, :500, :]
         return feats
 
