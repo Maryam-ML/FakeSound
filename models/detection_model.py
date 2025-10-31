@@ -246,7 +246,7 @@ class WavLM_Detection(BaseDetectionModel):
 
 
         # Load the pre-trained checkpoints pytorch_model.bin
-        checkpoint = torch.load('/kaggle/input/wavlm-large-pt/pytorch/default/1/wavlm-large.pt')
+        checkpoint = torch.load('/kaggle/working/FakeSound/ckpts/wavlm-large.pt')
         self.cfg = WavLMConfig(checkpoint['cfg'])
  # --- Check if checkpoint has configuration ---
         if 'cfg' in checkpoint:
