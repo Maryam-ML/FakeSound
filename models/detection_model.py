@@ -277,7 +277,7 @@ class WavLM_Detection(BaseDetectionModel):
 
         def future_extract(self, waveform, last_layer=True):
         # wav_input_16khz example torch.randn(2, 16000 * 10)
-        if last_layer:
+            if last_layer:
             # extract the representation of last layer
             if self.cfg.normalize:
                 waveform = torch.nn.functional.layer_norm(waveform, waveform.shape)
@@ -291,12 +291,12 @@ class WavLM_Detection(BaseDetectionModel):
             layer_reps = [x.transpose(0, 1) for x, _ in layer_results]
             return layer_reps
 
-        @dataclass
-        class UserDirModule:
+      @dataclass
+class UserDirModule:
              user_dir: str
 
-        class EAT_Detection(BaseDetectionModel):
-        def __init__(self, embed_dim=128, in_planes=768, multi_task=False):
+class EAT_Detection(BaseDetectionModel):
+    def __init__(self, embed_dim=128, in_planes=768, multi_task=False):
         super().__init__(embed_dim=128, in_planes=in_planes, multi_task=multi_task)
         
         import sys
@@ -313,8 +313,8 @@ class WavLM_Detection(BaseDetectionModel):
         self.future_extractor.eval()
         self.granularity = 'frame'
 
-    def future_extract(self, waveform):
-        if self.granularity == 'frame':
+        def future_extract(self, waveform):
+            if self.granularity == 'frame':
                 feats = self.future_extractor.extract_features(waveform, padding_mask=None,mask=False, remove_extra_tokens=True)
                 feats = feats['x'].squeeze(0)
         elif granularity == 'utterance':
@@ -322,6 +322,6 @@ class WavLM_Detection(BaseDetectionModel):
             feats = feats['x']
             feats = feats[:, 0].squeeze(0)
         # only firset 500 frames needs
-        feats = feats[:, :500, :]
+            feats = feats[:, :500, :]
         return feats
 
