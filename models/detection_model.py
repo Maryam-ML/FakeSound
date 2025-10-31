@@ -275,7 +275,7 @@ class WavLM_Detection(BaseDetectionModel):
             self.cfg = HFWavLMConfig.from_pretrained(hf_model_id)
             print(f"[SUCCESS] Loaded Hugging Face WavLM model: {hf_model_id}")
 
-   def future_extract(self, waveform, last_layer=True):
+        def future_extract(self, waveform, last_layer=True):
         # wav_input_16khz example torch.randn(2, 16000 * 10)
         if last_layer:
             # extract the representation of last layer
@@ -291,12 +291,12 @@ class WavLM_Detection(BaseDetectionModel):
             layer_reps = [x.transpose(0, 1) for x, _ in layer_results]
             return layer_reps
 
-@dataclass
-class UserDirModule:
-    user_dir: str
+        @dataclass
+        class UserDirModule:
+             user_dir: str
 
-class EAT_Detection(BaseDetectionModel):
-    def __init__(self, embed_dim=128, in_planes=768, multi_task=False):
+        class EAT_Detection(BaseDetectionModel):
+        def __init__(self, embed_dim=128, in_planes=768, multi_task=False):
         super().__init__(embed_dim=128, in_planes=in_planes, multi_task=multi_task)
         
         import sys
