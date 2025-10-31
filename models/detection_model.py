@@ -285,7 +285,7 @@ class WavLM_Detection(BaseDetectionModel):
             return rep
         else:
             # extract the representation of each layer
-        if self.cfg.normalize:
+              if self.cfg.normalize:
                 waveform = torch.nn.functional.layer_norm(waveform , waveform.shape)
             rep, layer_results = self.future_extractor.extract_features(waveform, output_layer=model.cfg.encoder_layers, ret_layer_results=True)[0]
             layer_reps = [x.transpose(0, 1) for x, _ in layer_results]
