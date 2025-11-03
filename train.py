@@ -64,7 +64,7 @@ class DeepfakeDetectionDataset(Dataset):
         return len(self.data)
 
     def _load_wav(self, source_file):
-        print(f"[DEBUG] Loading audio file: {source_file}")
+        #print(f"[DEBUG] Loading audio file: {source_file}")
         assert source_file.endswith('.wav'), "File must be .wav format"
         wav, sr = sf.read(source_file)
         channel = sf.info(source_file).channels
@@ -72,7 +72,7 @@ class DeepfakeDetectionDataset(Dataset):
         source = torch.from_numpy(wav).float()
 
         if sr != 16e3: 
-            print(f"[DEBUG] Resampling from {sr} Hz to {self.sample_rate} Hz")
+            #print(f"[DEBUG] Resampling from {sr} Hz to {self.sample_rate} Hz")
             source = torchaudio.functional.resample(source, orig_freq=sr, new_freq=self.sample_rate).float()  
 
         if self.model_class == "WavLM_Detection":
