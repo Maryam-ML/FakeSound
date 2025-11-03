@@ -236,6 +236,92 @@ class BaseDetectionModel(nn.Module):
         return {"pred":pred}
 
 
+
+class WavLM_Detection(BaseDetectionModel):
+    def __init__(self, embed_dim=128, in_planes=1024, multi_task=False):
+        super().__init__(embed_dim=128, in_planes=in_planes, multi_task=multi_task)
+
+        import sys
+        WAVLM_PATH = f"{WORKSPACE_PATH}/models/WavLM" 
+        sys.path.append(WAVLM_PATH)
+        from models.WavLM.WavLM import WavLM, WavLMConfig
+
+        # Load checkpoint
+        checkpoint_path = f"{WORKSPACE_PATH}/ckpts/pytorch_model.bin"
+        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        
+        print(f"Loaded checkpoint with {len(checkpoint)} keys")
+        
+        # Extract only WavLM weights and remove 'wavlm.' prefix
+        wavlm_weights = {}
+        for key, value in checkpoint.items():
+            if key.startswith('wavlm.'):
+                new_key = key[6:]  # Remove 'wavlm.' prefix
+                wavlm_weights[new_key] = value
+        
+        print(f"Extracted {len(wavlm_weights)} WavLM weights")
+        
+        # Create WavLM configuration
+        self.cfg = WavLMConfig()
+        
+        # Try to determine the model size from the weights
+        if 'encoder.layers.11.final_layer_norm.weight' in wavlm_weights:
+            # This is likely WavLM Base (12 layers)
+            self.cfg.encoder_layers = 12
+            self.cfg.encoder_embed_dim = 768
+            self.cfg.encoder_attention_heads = 12
+            self.cfg.encoder_ffn_embed_dim = 3072
+            print("Using WavLM Base configuration (12 layers)")
+        else:
+            # Default to Base configuration
+            self.cfg.encoder_layers = 12
+            self.cfg.encoder_embed_dim = 768
+            self.cfg.encoder_attention_heads = 12
+            self.cfg.encoder_ffn_embed_dim = 3072
+            print("Using default WavLM Base configuration")
+        
+        # Initialize the model
+        self.future_extractor = WavLM(self.cfg)
+        
+        # Get model state dict to understand expected keys
+        model_state = self.future_extractor.state_dict()
+        print(f"Model expects {len(model_state)} parameters")
+        
+        # Create a mapping between checkpoint keys and model keys
+        loaded_keys = []
+        missing_keys = []
+        
+        # Try to load with key mapping
+        for model_key in model_state.keys():
+            if model_key in wavlm_weights:
+                # Direct match
+                loaded_keys.append(model_key)
+            else:
+                # Try to find a matching key
+                found = False
+                for ckpt_key in wavlm_weights.keys():
+                    # Simple key mapping logic
+                    if (model_key.replace('encoder.', '') in ckpt_key or 
+                        ckpt_key.replace('encoder.', '') in model_key):
+                        model_state[model_key] = wavlm_weights[ckpt_key]
+                        loaded_keys.append(model_key)
+                        found = True
+                        break
+                if not found:
+                    missing_keys.append(model_key)
+        
+        print(f"Successfully loaded {len(loaded_keys)}/{len(model_state)} parameters")
+        
+        if missing_keys:
+            print(f"Missing {len(missing_keys)} parameters, initializing randomly")
+        
+        # Load the modified state dict
+        self.future_extractor.load_state_dict(model_state, strict=False)
+        self.future_extractor.eval()
+        
+        print("WavLM model initialized successfully!")
+
+'''
 class WavLM_Detection(BaseDetectionModel):
     def __init__(self, embed_dim=128, in_planes=1024, multi_task=False):
         super().__init__(embed_dim=128, in_planes=in_planes, multi_task=multi_task)
@@ -255,7 +341,7 @@ class WavLM_Detection(BaseDetectionModel):
         self.future_extractor = WavLM(self.cfg)
         #self.future_extractor.load_state_dict(checkpoint['model'])
         self.future_extractor.load_state_dict(checkpoint)
-        self.future_extractor.eval()
+        self.future_extractor.eval()'''
 
     def future_extract(self, waveform, last_layer=True):
         # wav_input_16khz example torch.randn(2, 16000 * 10)
