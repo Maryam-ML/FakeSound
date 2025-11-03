@@ -234,7 +234,6 @@ class BaseDetectionModel(nn.Module):
             pred_binary = self.multi_task_classifier(torch.mean(x, dim=1))
             return  {"pred":pred, "pred_binary":pred_binary}
         return {"pred":pred}
-
 class WavLM_Detection(BaseDetectionModel):
     def __init__(self, embed_dim=128, in_planes=1024, multi_task=False):
         super().__init__(embed_dim=128, in_planes=in_planes, multi_task=multi_task)
@@ -313,34 +312,11 @@ class WavLM_Detection(BaseDetectionModel):
         if missing_keys:
             print(f"Missing {len(missing_keys)} parameters, initializing randomly")
 
-        
         # Load the modified state dict
         self.future_extractor.load_state_dict(model_state, strict=False)
         self.future_extractor.eval()
-        
+
         print("WavLM model initialized successfully!")
-
-'''
-class WavLM_Detection(BaseDetectionModel):
-    def __init__(self, embed_dim=128, in_planes=1024, multi_task=False):
-        super().__init__(embed_dim=128, in_planes=in_planes, multi_task=multi_task)
-
-        import sys
-        WAVLM_PATH = f"{WORKSPACE_PATH}/models/WavLM" 
-        sys.path.append(WAVLM_PATH)
-        from models.WavLM.WavLM import WavLM, WavLMConfig
-
-        # load the pre-trained checkpoints
-        checkpoint = torch.load(f"{WORKSPACE_PATH}/ckpts/pytorch_model.bin")
-
-
-     
-        #self.cfg = WavLMConfig(checkpoint['cfg'])
-        self.cfg = WavLMConfig()
-        self.future_extractor = WavLM(self.cfg)
-        #self.future_extractor.load_state_dict(checkpoint['model'])
-        self.future_extractor.load_state_dict(checkpoint)
-        self.future_extractor.eval()'''
 
     def future_extract(self, waveform, last_layer=True):
         # wav_input_16khz example torch.randn(2, 16000 * 10)
@@ -353,12 +329,10 @@ class WavLM_Detection(BaseDetectionModel):
         else:
             # extract the representation of each layer
             if self.cfg.normalize:
-                waveform = torch.nn.functional.layer_norm(waveform , waveform.shape)
-            rep, layer_results = self.future_extractor.extract_features(waveform, output_layer=model.cfg.encoder_layers, ret_layer_results=True)[0]
+                waveform = torch.nn.functional.layer_norm(waveform, waveform.shape)
+            rep, layer_results = self.future_extractor.extract_features(waveform, output_layer=self.cfg.encoder_layers, ret_layer_results=True)[0]
             layer_reps = [x.transpose(0, 1) for x, _ in layer_results]
             return layer_reps
-
-
 
 
 @dataclass
