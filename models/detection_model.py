@@ -235,8 +235,6 @@ class BaseDetectionModel(nn.Module):
             return  {"pred":pred, "pred_binary":pred_binary}
         return {"pred":pred}
 
-
-
 class WavLM_Detection(BaseDetectionModel):
     def __init__(self, embed_dim=128, in_planes=1024, multi_task=False):
         super().__init__(embed_dim=128, in_planes=in_planes, multi_task=multi_task)
@@ -249,21 +247,21 @@ class WavLM_Detection(BaseDetectionModel):
         # Load checkpoint
         checkpoint_path = f"{WORKSPACE_PATH}/ckpts/pytorch_model.bin"
         checkpoint = torch.load(checkpoint_path, map_location='cpu')
-        
+
         print(f"Loaded checkpoint with {len(checkpoint)} keys")
-        
+
         # Extract only WavLM weights and remove 'wavlm.' prefix
         wavlm_weights = {}
         for key, value in checkpoint.items():
             if key.startswith('wavlm.'):
                 new_key = key[6:]  # Remove 'wavlm.' prefix
                 wavlm_weights[new_key] = value
-        
+
         print(f"Extracted {len(wavlm_weights)} WavLM weights")
-        
+
         # Create WavLM configuration
         self.cfg = WavLMConfig()
-        
+
         # Try to determine the model size from the weights
         if 'encoder.layers.11.final_layer_norm.weight' in wavlm_weights:
             # This is likely WavLM Base (12 layers)
@@ -279,18 +277,18 @@ class WavLM_Detection(BaseDetectionModel):
             self.cfg.encoder_attention_heads = 12
             self.cfg.encoder_ffn_embed_dim = 3072
             print("Using default WavLM Base configuration")
-        
+
         # Initialize the model
         self.future_extractor = WavLM(self.cfg)
-        
+
         # Get model state dict to understand expected keys
         model_state = self.future_extractor.state_dict()
         print(f"Model expects {len(model_state)} parameters")
-        
+
         # Create a mapping between checkpoint keys and model keys
         loaded_keys = []
         missing_keys = []
-        
+
         # Try to load with key mapping
         for model_key in model_state.keys():
             if model_key in wavlm_weights:
@@ -309,11 +307,12 @@ class WavLM_Detection(BaseDetectionModel):
                         break
                 if not found:
                     missing_keys.append(model_key)
-        
+
         print(f"Successfully loaded {len(loaded_keys)}/{len(model_state)} parameters")
-        
+
         if missing_keys:
             print(f"Missing {len(missing_keys)} parameters, initializing randomly")
+
         
         # Load the modified state dict
         self.future_extractor.load_state_dict(model_state, strict=False)
