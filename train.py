@@ -206,7 +206,7 @@ def main():
             completed_steps += 1
 
             if step % 10 == 0:
-                print(f"[DEBUG] Epoch {epoch+1}, Step {step}, Loss: {loss.item():.4f}")
+                #print(f"[DEBUG] Epoch {epoch+1}, Step {step}, Loss: {loss.item():.4f}")
 
         avg_loss = total_loss.item() / len(train_dataloader)
         print(f"[INFO] Epoch {epoch+1} finished — Avg loss: {avg_loss:.4f}")
