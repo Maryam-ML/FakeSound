@@ -164,8 +164,8 @@ class WavLMConfig:
         self.extractor_mode: str = "default"     # mode for feature extractor. default has a single group norm with d groups in the first conv block, whereas layer_norm has layer norms in every block (meant to use with normalize=True)
         self.encoder_layers: int = 12     # num encoder layers in the transformer
 
-        #self.encoder_embed_dim: int = 768     # encoder embedding dimension
-        self.encoder_embed_dim: int = 1024
+        self.encoder_embed_dim: int = 768     # encoder embedding dimension
+        #self.encoder_embed_dim: int = 1024
         self.encoder_ffn_embed_dim: int = 3072     # encoder embedding dimension for FFN
         self.encoder_attention_heads: int = 12     # num encoder attention heads
         self.activation_fn: str = "gelu"     # activation function to use
