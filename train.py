@@ -205,8 +205,9 @@ def main():
             progress_bar.update(1)
             completed_steps += 1
 
-            if step % 10 == 0:
-                #print(f"[DEBUG] Epoch {epoch+1}, Step {step}, Loss: {loss.item():.4f}")
+        print(f"train epoch {epoch} finish!")
+
+        
 
         avg_loss = total_loss.item() / len(train_dataloader)
         print(f"[INFO] Epoch {epoch+1} finished — Avg loss: {avg_loss:.4f}")
@@ -228,7 +229,7 @@ def main():
             "time": datetime.now().strftime("%y-%m-%d-%H-%M-%S")
         }
 
-        with open(f"{args.output_dir}/summary.jsonl", "a") as f:
+        with open(f"{args.output_dir}/summary.json", "a") as f:
             f.write(json.dumps(result) + "\n\n")
         print(f"[INFO] Result logged for epoch {epoch+1}")
 
