@@ -235,7 +235,7 @@ class BaseDetectionModel(nn.Module):
             return  {"pred":pred, "pred_binary":pred_binary}
         return {"pred":pred}
 class WavLM_Detection(BaseDetectionModel):
-    def __init__(self, embed_dim=128, in_planes=1024, multi_task=False):
+    def __init__(self, embed_dim=128, in_planes=768, multi_task=False):
         super().__init__(embed_dim=128, in_planes=in_planes, multi_task=multi_task)
 
         import sys
