@@ -235,6 +235,7 @@ class BaseDetectionModel(nn.Module):
             return  {"pred":pred, "pred_binary":pred_binary}
         return {"pred":pred}
 
+
 class WavLM_Detection(BaseDetectionModel):
     def __init__(self, embed_dim=128, in_planes=1024, multi_task=False):
         super().__init__(embed_dim=128, in_planes=in_planes, multi_task=multi_task)
@@ -244,76 +245,31 @@ class WavLM_Detection(BaseDetectionModel):
         sys.path.append(WAVLM_PATH)
         from models.WavLM.WavLM import WavLM, WavLMConfig
 
-
-        # Load the pre-trained checkpoints pytorch_model.bin
-        checkpoint = torch.load('/kaggle/input/wavlm-large-pt/pytorch/default/1/wavlm-large.pt')
-        print(checkpoint.keys()) 
+        # load the pre-trained checkpoints
+        checkpoint = torch.load(f"{WORKSPACE_PATH}/ckpts/WavLM-Large.pt")
         self.cfg = WavLMConfig(checkpoint['cfg'])
- # --- Check if checkpoint has configuration ---
-        if 'cfg' in checkpoint:
-            print("[INFO] Using Fairseq checkpoint with 'cfg' configuration.")
-            self.cfg = WavLMConfig(checkpoint['cfg'])
-        elif 'config' in checkpoint:
-            print("[INFO] Using Fairseq checkpoint with 'config' configuration.")
-            self.cfg = WavLMConfig(checkpoint['config'])
-        else:
-            print("[WARNING] 'cfg' not found in checkpoint — using default configuration.")
-            self.cfg = WavLMConfig()  # default config
+        self.future_extractor = WavLM(self.cfg)
+        self.future_extractor.load_state_dict(checkpoint['model'])
+        self.future_extractor.eval()
 
- # --- Try loading Fairseq or fallback to Hugging Face ---
-        try:
-            print("[INFO] Trying to load Fairseq-style WavLM checkpoint...")
-            self.wavlm = WavLM(self.cfg)
-            self.wavlm.load_state_dict(checkpoint['model'], strict=False)
-            print("[SUCCESS] Loaded Fairseq WavLM checkpoint successfully.")
-
-        except (KeyError, TypeError):
-            print("[WARNING] Failed to load Fairseq checkpoint — falling back to Hugging Face WavLM.")
-            from transformers import WavLMModel, WavLMConfig as HFWavLMConfig
-            hf_model_id = 'microsoft/wavlm-base-plus'  # you can change this if needed
-            self.wavlm = WavLMModel.from_pretrained(hf_model_id)
-            self.cfg = HFWavLMConfig.from_pretrained(hf_model_id)
-            print(f"[SUCCESS] Loaded Hugging Face WavLM model: {hf_model_id}")
-
-        def future_extract(self, waveform, last_layer=True):
-            import torch
-
-        # optional normalize (only if cfg has that flag)
-        if getattr(self.cfg, "normalize", False):
-            waveform = torch.nn.functional.layer_norm(waveform, waveform.shape)
-
-        # detect backend: fairseq has .extract_features; HF doesn't
-        is_fairseq = hasattr(self.future_extractor, "extract_features")
-
+    def future_extract(self, waveform, last_layer=True):
+        # wav_input_16khz example torch.randn(2, 16000 * 10)
         if last_layer:
-           # return only the last layer features, shape [B, T, C]
-            if is_fairseq:
-             rep = self.future_extractor.extract_features(waveform)[0]     # fairseq
-             return rep
-            else:
-                out = self.future_extractor(input_values=waveform)            # HF
-                rep = out.last_hidden_state                                   # [B, T, C]
-                return rep
+            # extract the representation of last layer
+            if self.cfg.normalize:
+                waveform = torch.nn.functional.layer_norm(waveform, waveform.shape)
+            rep = self.future_extractor.extract_features(waveform)[0]
+            return rep
         else:
-            # return features from every layer
-            if is_fairseq:
-                rep, layer_results = self.future_extractor.extract_features(
-                    waveform,
-                    output_layer=getattr(self.cfg, "encoder_layers", None),
-                    ret_layer_results=True
-                )
-                # fairseq gives tuples (x, ...) with x as [T, B, C] or [B, T, C] depending on build.
-                # most forks expect [B, C, T] per layer, so transpose like your original code:
-                layer_reps = [x.transpose(0, 1) for x, _ in layer_results]    # -> [B, C, T]
-                return layer_reps
-            else:
-                # HF: ask for all hidden states
-                out = self.future_extractor(input_values=waveform, output_hidden_states=True)
-                # drop embedding (index 0); keep encoder layers
-                hidden = list(out.hidden_states[1:])                          # each [B, T, C]
-                layer_reps = [h.transpose(1, 2) for h in hidden]              # -> [B, C, T] to match fairseq path
-                return layer_reps
-from dataclasses import dataclass
+            # extract the representation of each layer
+            if self.cfg.normalize:
+                waveform = torch.nn.functional.layer_norm(waveform , waveform.shape)
+            rep, layer_results = self.future_extractor.extract_features(waveform, output_layer=model.cfg.encoder_layers, ret_layer_results=True)[0]
+            layer_reps = [x.transpose(0, 1) for x, _ in layer_results]
+            return layer_reps
+
+
+
 
 @dataclass
 class UserDirModule:
