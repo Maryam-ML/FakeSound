@@ -253,8 +253,8 @@ class WavLM_Detection(BaseDetectionModel):
         #self.cfg = WavLMConfig(checkpoint['cfg'])
         self.cfg = WavLMConfig()
         self.future_extractor = WavLM(self.cfg)
-        self.future_extractor.load_state_dict(checkpoint['model'])
-        #self.future_extractor.load_state_dict(checkpoint)
+        #self.future_extractor.load_state_dict(checkpoint['model'])
+        self.future_extractor.load_state_dict(checkpoint)
         self.future_extractor.eval()
 
     def future_extract(self, waveform, last_layer=True):
