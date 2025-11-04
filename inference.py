@@ -43,6 +43,10 @@ def parse_args():
         help="Batch size (per device) for the dataloader.",
     )
     parser.add_argument(
+        "--seed", type=int, default=0,
+        help="A seed for reproducible training."
+    )
+    parser.add_argument(
         "--threshold", '-th', type=float, default=0.5,
         help=".",
     )

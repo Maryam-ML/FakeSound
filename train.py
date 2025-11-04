@@ -204,35 +204,25 @@ def main():
             total_loss += loss.detach().float()
             progress_bar.update(1)
             completed_steps += 1
-
         print(f"train epoch {epoch} finish!")
+ 
+        result = {}
+        result["epoch"] = epoch,
+        result["step"] = completed_steps
+        result["train_loss"] = round(total_loss.item()/len(train_dataloader), 4)
 
-        
-
-        avg_loss = total_loss.item() / len(train_dataloader)
-        print(f"[INFO] Epoch {epoch+1} finished — Avg loss: {avg_loss:.4f}")
-
-        if avg_loss < best_loss:
-            best_loss = avg_loss
+        if result["train_loss"] < best_loss:
+            best_loss = result["train_loss"]
             best_epoch = epoch
             torch.save(model.state_dict(), f"{args.output_dir}/best.pt")
-            print(f"[INFO] New best model saved at epoch {epoch+1}")
-
         if epoch > 0 and epoch % 10 == 0:
             torch.save(model.state_dict(), f"{args.output_dir}/epoch{epoch}.pt")
-            print(f"[INFO] Model checkpoint saved for epoch {epoch+1}")
+        result["best_eopch"] = best_epoch
+        print(result)
+        result["time"] = datetime.now().strftime("%y-%m-%d-%H-%M-%S")
 
-        result = {
-            "epoch": epoch,
-            "train_loss": round(avg_loss, 4),
-            "best_epoch": best_epoch,
-            "time": datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-        }
-
-        with open(f"{args.output_dir}/summary.json", "a") as f:
+        with open("{}/summary.jsonl".format(args.output_dir), "a") as f:
             f.write(json.dumps(result) + "\n\n")
-        print(f"[INFO] Result logged for epoch {epoch+1}")
-
 if __name__ == "__main__":
     print("[INFO] Script execution started.")
     main()
