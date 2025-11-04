@@ -29,14 +29,13 @@ class dotdict(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Test a deepfake audio detection model.")
     parser.add_argument(
-        "--test_files", '-f', default={
-            "zeroshot": f"{WORKSPACE_PATH}/deepfake_data/ldm_test_zeroshot.json",
-            "easy": f"{WORKSPACE_PATH}/deepfake_data/ldm2_test_easy.json",
-            "hard": f"{WORKSPACE_PATH}/deepfake_data/ldm2_test_hard.json",
-        }
+        "--test_files", '-f', type=str, default=None,  # Changed to type=str
+        help="JSON string or path to JSON file containing test files"
     )
     parser.add_argument(
         "--batch_size", '-b', type=int, default=16,
@@ -63,10 +62,29 @@ def parse_args():
         help="Path for saved model bin file."
     )
     args = parser.parse_args()
+    
+    # Parse test_files if it's a string
+    if args.test_files is None:
+        # Use default values
+        args.test_files = {
+            "zeroshot": f"{WORKSPACE_PATH}/deepfake_data/ldm_test_zeroshot.json",
+            "easy": f"{WORKSPACE_PATH}/deepfake_data/ldm2_test_easy.json",
+            "hard": f"{WORKSPACE_PATH}/deepfake_data/ldm2_test_hard.json",
+        }
+    elif isinstance(args.test_files, str):
+        # Try to parse as JSON string first
+        try:
+            args.test_files = json.loads(args.test_files)
+        except json.JSONDecodeError:
+            # If that fails, try to load as a file path
+            with open(args.test_files, 'r') as f:
+                args.test_files = json.load(f)
+    
     args.original_args = os.path.join(args.exp_path, args.original_args)    
     args.model_pt = os.path.join(args.exp_path, args.model_pt)
     return args
-    
+
+
 def main():
     args = parse_args()
     train_args = dotdict(json.loads(open(args.original_args).readlines()[0]))
