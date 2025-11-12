@@ -81,7 +81,7 @@ def parse_args():
     return args
 
 
-# ASVspoof Dataset class to load audio and labels
+'''# ASVspoof Dataset class to load audio and labels
 class ASVspoofDataset(Dataset):
     def __init__(self, audio_dir, label_file, args):
         # Load label data from text file
@@ -139,7 +139,75 @@ class ASVspoofDataset(Dataset):
             else:
                 batch.append(torch.tensor(np.array(dat[i].tolist()), dtype=torch.float32))
         return batch
+'''
 
+
+# ASVspoof Dataset class to load audio and labels
+class ASVspoofDataset(Dataset):
+    def __init__(self, audio_dir, label_file, args):
+        # Load label data from text file
+        self.labels = pd.read_csv(label_file, header=None, sep=' ', names=['filename', 'label'])
+
+        # Path to audio files
+        self.audio_dir = audio_dir
+
+        # Other configurations
+        self.time_resolution = args.time_resolution
+        self.duration = args.duration
+        self.sample_rate = args.sample_rate
+        num_examples = args.num_examples
+
+        # If num_examples is not -1, limit dataset size
+        if num_examples != -1:
+            self.labels = self.labels[:num_examples]
+
+    def __len__(self):
+        return len(self.labels)
+
+    def _load_audio(self, source_file):
+        """
+        Load audio file regardless of the format.
+        """
+        # Try reading the audio file using soundfile
+        try:
+            wav, sr = sf.read(source_file)
+        except Exception as e:
+            # If soundfile fails, try librosa
+            wav, sr = librosa.load(source_file, sr=self.sample_rate)
+        
+        assert sr == self.sample_rate, f"Expected sample rate of {self.sample_rate}, but got {sr}"
+        return torch.from_numpy(wav).float()
+
+    def __getitem__(self, index):
+        item = self.labels.iloc[index]
+
+        # Get the file path and label
+        file_path = os.path.join(self.audio_dir, item['filename'])
+        audio = self._load_audio(file_path)
+
+        # Binary label: fake -> 1, real -> 0
+        binary_label = int(item['label'])
+
+        # Create a target tensor for the onset/offset window
+        tgt = np.zeros(int(self.duration / self.time_resolution))
+        if binary_label == 1:
+            # Assuming labels are in format 'onset_offset' like '8.28_9.96'
+            [onset, offset] = item["filename"].split("_")
+            tgt[int(float(onset) / self.time_resolution): int(float(offset) / self.time_resolution)] = 1
+
+        return audio, binary_label, tgt, item["filename"]
+
+    def collate_fn(self, data):
+        dat = pd.DataFrame(data)
+        batch = []
+        for i in dat:
+            if i == 3:
+                batch.append(dat[i].tolist())
+            elif i == 1:
+                batch.append(np.array(dat[i]))
+            else:
+                batch.append(torch.tensor(np.array(dat[i].tolist()), dtype=torch.float32))
+        return batch
 
 # Main function for model training
 def main():
