@@ -104,6 +104,7 @@ class ASVspoofDataset(Dataset):
         self.time_resolution = args.time_resolution
         self.duration = args.duration
         self.sample_rate = args.sample_rate
+        self.max_samples = int(self.duration * self.sample_rate)
         num_examples = args.num_examples
 
         # If num_examples is not -1, limit dataset size
@@ -136,7 +137,7 @@ class ASVspoofDataset(Dataset):
 
     def _load_audio(self, source_file):
         """
-        Load audio file regardless of the format.
+        Load audio file and pad/trim to fixed length.
         """
         # Try reading the audio file using soundfile
         try:
@@ -156,7 +157,19 @@ class ASVspoofDataset(Dataset):
             wav = librosa.resample(wav, orig_sr=sr, target_sr=self.sample_rate)
             sr = self.sample_rate
         
-        return torch.from_numpy(wav).float()
+        # Convert to tensor
+        audio_tensor = torch.from_numpy(wav).float()
+        
+        # Pad or trim to fixed length
+        if len(audio_tensor) < self.max_samples:
+            # Pad with zeros
+            padding = self.max_samples - len(audio_tensor)
+            audio_tensor = torch.nn.functional.pad(audio_tensor, (0, padding))
+        elif len(audio_tensor) > self.max_samples:
+            # Trim to max_samples
+            audio_tensor = audio_tensor[:self.max_samples]
+        
+        return audio_tensor
 
     def __getitem__(self, index):
         item = self.labels.iloc[index]
@@ -184,16 +197,26 @@ class ASVspoofDataset(Dataset):
         return audio, binary_label, tgt, item["filename"]
 
     def collate_fn(self, data):
-        dat = pd.DataFrame(data)
-        batch = []
-        for i in dat:
-            if i == 3:
-                batch.append(dat[i].tolist())
-            elif i == 1:
-                batch.append(np.array(dat[i]))
-            else:
-                batch.append(torch.tensor(np.array(dat[i].tolist()), dtype=torch.float32))
-        return batch
+        """
+        Custom collate function to batch data properly.
+        """
+        audios = []
+        binary_labels = []
+        tgts = []
+        filenames = []
+        
+        for audio, binary_label, tgt, filename in data:
+            audios.append(audio)
+            binary_labels.append(binary_label)
+            tgts.append(tgt)
+            filenames.append(filename)
+        
+        # Stack all tensors
+        audios_batch = torch.stack(audios)  # Shape: (batch_size, max_samples)
+        binary_labels_batch = np.array(binary_labels)  # Shape: (batch_size,)
+        tgts_batch = torch.tensor(np.array(tgts), dtype=torch.float32)  # Shape: (batch_size, num_frames)
+        
+        return [audios_batch, binary_labels_batch, tgts_batch, filenames]
 
 
 # Main function for model training
