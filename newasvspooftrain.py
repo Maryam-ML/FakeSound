@@ -14,6 +14,7 @@ from datetime import datetime
 from tqdm.auto import tqdm
 import librosa
 
+
 # Set up workspace path (update this to your actual path if necessary)
 WORKSPACE_PATH = "/kaggle/working"  # Example, update to your path if necessary
 sys.path.extend([WORKSPACE_PATH])
@@ -102,39 +103,59 @@ class ASVspoofDataset(Dataset):
     def __len__(self):
         return len(self.labels)
 
+    def _build_file_path(self, filename):
+        """
+        Build the correct file path for the audio file.
+        The filename from the CSV may not have an extension, so we need to add .flac
+        """
+        # Check if filename already has an extension
+        if not filename.endswith('.flac'):
+            filename = filename + '.flac'
+        
+        # Build the full path
+        file_path = os.path.join(self.audio_dir, filename)
+        
+        # Verify the file exists
+        if not os.path.exists(file_path):
+            # Try without extension in case the original had one
+            alt_path = os.path.join(self.audio_dir, filename.replace('.flac', ''))
+            if os.path.exists(alt_path):
+                return alt_path
+            # If still not found, raise an error with helpful message
+            raise FileNotFoundError(f"Audio file not found: {file_path}")
+        
+        return file_path
+
     def _load_audio(self, source_file):
         """
-        Load audio file using librosa or soundfile with error handling.
+        Load audio file regardless of the format.
         """
-        # Check if the file exists
-        if not os.path.exists(source_file):
-            print(f"[WARNING] File does not exist: {source_file}")
-            return None
-        
+        # Try reading the audio file using soundfile
         try:
-            # Try using soundfile
             wav, sr = sf.read(source_file)
         except Exception as e:
             # If soundfile fails, try librosa
             try:
                 wav, sr = librosa.load(source_file, sr=self.sample_rate)
-            except Exception as e:
-                print(f"[ERROR] Failed to load {source_file}. Error: {str(e)}")
-                return None
+            except Exception as e2:
+                print(f"[ERROR] Failed to load {source_file}")
+                print(f"  soundfile error: {e}")
+                print(f"  librosa error: {e2}")
+                raise
         
-        # Ensure the sample rate matches the desired sample rate
-        assert sr == self.sample_rate, f"Expected sample rate of {self.sample_rate}, but got {sr}"
+        # Resample if necessary
+        if sr != self.sample_rate:
+            wav = librosa.resample(wav, orig_sr=sr, target_sr=self.sample_rate)
+            sr = self.sample_rate
+        
         return torch.from_numpy(wav).float()
 
     def __getitem__(self, index):
         item = self.labels.iloc[index]
 
-        # Get the file path and label
-        file_path = os.path.join(self.audio_dir, item['filename'])
+        # Build the correct file path with extension
+        file_path = self._build_file_path(item['filename'])
         audio = self._load_audio(file_path)
-
-        if audio is None:
-            return None  # Skip the sample if it failed to load
 
         # Binary label: fake -> 1, real -> 0
         binary_label = int(item['label'])
@@ -143,15 +164,19 @@ class ASVspoofDataset(Dataset):
         tgt = np.zeros(int(self.duration / self.time_resolution))
         if binary_label == 1:
             # Assuming labels are in format 'onset_offset' like '8.28_9.96'
-            [onset, offset] = item["filename"].split("_")
-            tgt[int(float(onset) / self.time_resolution): int(float(offset) / self.time_resolution)] = 1
+            filename_parts = item["filename"].split("_")
+            if len(filename_parts) >= 2:
+                try:
+                    onset = float(filename_parts[-2])
+                    offset = float(filename_parts[-1].replace('.flac', ''))
+                    tgt[int(onset / self.time_resolution): int(offset / self.time_resolution)] = 1
+                except (ValueError, IndexError):
+                    # If parsing fails, keep tgt as all zeros
+                    pass
 
         return audio, binary_label, tgt, item["filename"]
 
     def collate_fn(self, data):
-        # Remove None entries (failed samples)
-        data = [d for d in data if d is not None]
-
         dat = pd.DataFrame(data)
         batch = []
         for i in dat:
@@ -197,7 +222,7 @@ def main():
 
     print(f"[INFO] Initializing model: {args.model_class}")
 
-    # Initialize the model
+    # model = globals()[args.model_class](multi_task=args.multi_task).to(device)
     model = getattr(detection_model, args.model_class)(multi_task=args.multi_task).to(device)
     print("[INFO] Model initialized successfully.")
 
@@ -280,7 +305,7 @@ def main():
         print(result)
         result["time"] = datetime.now().strftime("%y-%m-%d-%H-%M-%S")
 
-        with open(f"{args.output_dir}/summary.jsonl", "a") as f:
+        with open("{}/summary.jsonl".format(args.output_dir), "a") as f:
             f.write(json.dumps(result) + "\n\n")
 
 
