@@ -361,3 +361,38 @@ class Hubert_Detection(BaseDetectionModel):
         feats = self.model(**inputs).last_hidden_state  # Extract feature layer
         feats = feats[:, :500, :]  # Keep first 500 frames
         return feats
+
+
+
+
+class EAT_Detection(BaseDetectionModel):
+    def __init__(self, embed_dim=128, in_planes=768, multi_task=False):
+        super().__init__(embed_dim=128, in_planes=in_planes, multi_task=multi_task)
+
+        import sys
+        FAIRSEQ_PATH = f"{WORKSPACE_PATH}/models/EAT/fairseq"
+        sys.path.append(FAIRSEQ_PATH)
+        import fairseq
+
+        model_dir = f"{WORKSPACE_PATH}/models/EAT/EAT"
+        checkpoint_dir = f"{WORKSPACE_PATH}/ckpts/EAT_base_epoch20.pt"
+        model_path = UserDirModule(model_dir)
+        fairseq.utils.import_user_module(model_path)
+        self.future_extractor, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([checkpoint_dir])
+        self.future_extractor = self.future_extractor[0]
+        self.future_extractor.eval()
+        self.granularity = 'frame'
+
+    def future_extract(self, waveform):
+        if self.granularity == 'frame':
+                feats = self.future_extractor.extract_features(waveform, padding_mask=None,mask=False, remove_extra_tokens=True)
+                feats = feats['x'].squeeze(0)
+        elif granularity == 'utterance':
+            feats = self.future_extractor.extract_features(waveforme, padding_mask=None,mask=False, remove_extra_tokens=False)
+            feats = feats['x']
+            feats = feats[:, 0].squeeze(0)
+        # only firset 500 frames needs
+        feats = feats[:, :500, :]
+        return feats
+
+
