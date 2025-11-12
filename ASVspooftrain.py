@@ -1,4 +1,4 @@
-import random 
+import random
 import os
 import json
 import pandas as pd
@@ -10,12 +10,14 @@ import soundfile as sf
 from transformers import get_scheduler
 import argparse
 import sys
+from datetime import datetime
+from tqdm.auto import tqdm
+
 # Set up workspace path (update this to your actual path if necessary)
 WORKSPACE_PATH = "/kaggle/working"  # Example, update to your path if necessary
 sys.path.extend([WORKSPACE_PATH])
 
-#from models import detection_model
-
+# Define argument parser
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a deepfake audio detection model.")
     parser.add_argument(
@@ -71,9 +73,11 @@ def parse_args():
     )
     args = parser.parse_args()
 
+    print(f"[INFO] Parsed arguments: {args}")
     return args
 
 
+# ASVspoof Dataset class to load audio and labels
 class ASVspoofDataset(Dataset):
     def __init__(self, audio_dir, label_file, args):
         # Load label data from text file
@@ -133,9 +137,10 @@ class ASVspoofDataset(Dataset):
         return batch
 
 
+# Main function for model training
 def main():
     args = parse_args()
-    print(args)
+    print("[INFO] Starting training pipeline...")
 
     # Set random seed for reproducibility
     seed = args.seed
@@ -143,8 +148,11 @@ def main():
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
+        print("[INFO] CUDA is available, using GPU.")
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+    else:
+        print("[WARNING] CUDA not available, using CPU.")
 
     # Handle output directory creation
     if args.output_dir is None or args.output_dir == "":
@@ -152,19 +160,27 @@ def main():
     elif args.output_dir is not None:
         args.output_dir = f"{WORKSPACE_PATH}/ckpts/{args.model_class}/multi-task-{args.multi_task}_{args.output_dir}"
     os.makedirs(args.output_dir, exist_ok=True)
-    with open("{}/summary.jsonl".format(args.output_dir), "w") as f:
+    print(f"[INFO] Output directory: {args.output_dir}")
+
+    with open(f"{args.output_dir}/summary.jsonl", "w") as f:
         f.write(json.dumps(dict(vars(args))) + "\n\n")
 
-    # Initialize device and model
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    #model = getattr(detection_model, args.model_class)(multi_task=args.multi_task).to(device)
+    print(f"[INFO] Device in use: {device}")
 
-    # Set up dataset and dataloader
+    print(f"[INFO] Initializing model: {args.model_class}")
+
+    # model = globals()[args.model_class](multi_task=args.multi_task).to(device)
+    model = getattr(detection_model, args.model_class)(multi_task=args.multi_task).to(device)
+    print("[INFO] Model initialized successfully.")
+
+    print(f"[INFO] Loading dataset from: {args.train_file}")
     audio_dir = "/kaggle/input/asvpoof-2019-dataset/LA/LA/ASVspoof2019_LA_train/flac"
     label_file = "/kaggle/input/asvpoof-2019-dataset/LA/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt"
     
     train_dataset = ASVspoofDataset(audio_dir, label_file, args)
     train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size, collate_fn=train_dataset.collate_fn)
+    print(f"[INFO] Number of training samples: {len(train_dataset)}")
 
     # Print the total number of audio files and labels
     num_files = len(train_dataset.labels)  # Total number of labels (rows in the CSV file)
@@ -182,11 +198,66 @@ def main():
     print(f"Total number of files: {num_files}")
     print(f"Total number of fake labels (1): {num_labels}")
     print(f"Total number of real labels (0): {num_real_labels}")
-    
+
+    # Training loop setup
+    criterion = torch.nn.BCEWithLogitsLoss()
+    optimizer_parameters = model.parameters()
+    optimizer = torch.optim.AdamW(optimizer_parameters, lr=args.learning_rate, betas=(0.9, 0.999), weight_decay=2e-4, eps=1e-08)
+
+    num_update_steps_per_epoch = len(train_dataloader)
+    args.max_train_steps = args.num_epochs * num_update_steps_per_epoch
+    lr_scheduler = get_scheduler("linear", optimizer=optimizer, num_warmup_steps=100, num_training_steps=args.max_train_steps)
+
+    print("[INFO] ***** Training Started *****")
+    print(f"  Total epochs: {args.num_epochs}")
+    print(f"  Total steps: {args.max_train_steps}")
+    print(f"  Batch size: {args.batch_size}")
+
+    progress_bar = tqdm(range(args.max_train_steps))
+    completed_steps = 0
+    best_loss, best_epoch = np.inf, 0
+
+    for epoch in range(args.num_epochs):
+        print(f"\n[INFO] Starting epoch {epoch+1}/{args.num_epochs}")
+        model.train()
+        total_loss = 0
+        for step, batch in enumerate(train_dataloader):
+            audio, binary_label, tgt, _ = batch
+            output = model(audio.to(device))
+            loss = criterion(output["pred"].squeeze(-1), tgt.to(device))
+            if hasattr(model, "multi_task_classifier"):
+                loss = (1.0 - args.multi_task_ratio) * loss + args.multi_task_ratio * criterion(
+                    output["pred_binary"].squeeze(-1), torch.tensor(binary_label, dtype=float).to(device)
+                )
+            loss.backward()
+            optimizer.step()
+            lr_scheduler.step()
+            optimizer.zero_grad()
+            total_loss += loss.detach().float()
+            progress_bar.update(1)
+            completed_steps += 1
+        print(f"train epoch {epoch} finish!")
+
+        result = {}
+        result["epoch"] = epoch,
+        result["step"] = completed_steps
+        result["train_loss"] = round(total_loss.item()/len(train_dataloader), 4)
+
+        if result["train_loss"] < best_loss:
+            best_loss = result["train_loss"]
+            best_epoch = epoch
+            torch.save(model.state_dict(), f"{args.output_dir}/best.pt")
+        if epoch > 0 and epoch % 10 == 0:
+            torch.save(model.state_dict(), f"{args.output_dir}/epoch{epoch}.pt")
+        result["best_epoch"] = best_epoch
+        print(result)
+        result["time"] = datetime.now().strftime("%y-%m-%d-%H-%M-%S")
+
+        with open("{}/summary.jsonl".format(args.output_dir), "a") as f:
+            f.write(json.dumps(result) + "\n\n")
+
 
 if __name__ == "__main__":
+    print("[INFO] Script execution started.")
     main()
-
-
-
-
+    print("[INFO] Script execution finished successfully.")
