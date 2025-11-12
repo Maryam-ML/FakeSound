@@ -234,6 +234,8 @@ class BaseDetectionModel(nn.Module):
             pred_binary = self.multi_task_classifier(torch.mean(x, dim=1))
             return  {"pred":pred, "pred_binary":pred_binary}
         return {"pred":pred}
+
+
 class WavLM_Detection(BaseDetectionModel):
     def __init__(self, embed_dim=128, in_planes=768, multi_task=False):
         super().__init__(embed_dim=128, in_planes=in_planes, multi_task=multi_task)
@@ -339,30 +341,6 @@ class WavLM_Detection(BaseDetectionModel):
 class UserDirModule:
     user_dir: str
 
-from transformers import HubertModel, HubertProcessor
-
-class Hubert_Detection(BaseDetectionModel):
-    def __init__(self, embed_dim=128, in_planes=768, multi_task=False, checkpoint_path=None):
-        super().__init__(embed_dim=embed_dim, in_planes=in_planes, multi_task=multi_task)
-        
-        model_name = "facebook/hubert-base-ls960"  # Or load your checkpoint here
-        self.processor = HubertProcessor.from_pretrained(model_name)
-        
-        # Load checkpoint if provided
-        if checkpoint_path:
-            self.model = HubertModel.from_pretrained(checkpoint_path)
-        else:
-            self.model = HubertModel.from_pretrained(model_name)  # Load pretrained model if no custom checkpoint
-
-        self.model.eval()
-
-    def future_extract(self, waveform):
-        inputs = self.processor(waveform, return_tensors="pt", sampling_rate=16000)
-        feats = self.model(**inputs).last_hidden_state  # Extract feature layer
-        feats = feats[:, :500, :]  # Keep first 500 frames
-        return feats
-
-
 
 
 class EAT_Detection(BaseDetectionModel):
@@ -395,4 +373,26 @@ class EAT_Detection(BaseDetectionModel):
         feats = feats[:, :500, :]
         return feats
 
+#from transformers import HubertModel, HubertProcessor
+
+class Hubert_Detection(BaseDetectionModel):
+    def __init__(self, embed_dim=128, in_planes=768, multi_task=False, checkpoint_path=None):
+        super().__init__(embed_dim=embed_dim, in_planes=in_planes, multi_task=multi_task)
+        
+        model_name = "facebook/hubert-base-ls960"  # Or load your checkpoint here
+        self.processor = HubertProcessor.from_pretrained(model_name)
+        
+        # Load checkpoint if provided
+        if checkpoint_path:
+            self.model = HubertModel.from_pretrained(checkpoint_path)
+        else:
+            self.model = HubertModel.from_pretrained(model_name)  # Load pretrained model if no custom checkpoint
+
+        self.model.eval()
+
+    def future_extract(self, waveform):
+        inputs = self.processor(waveform, return_tensors="pt", sampling_rate=16000)
+        feats = self.model(**inputs).last_hidden_state  # Extract feature layer
+        feats = feats[:, :500, :]  # Keep first 500 frames
+        return feats
 
