@@ -85,7 +85,17 @@ def parse_args():
 class ASVspoofDataset(Dataset):
     def __init__(self, audio_dir, label_file, args):
         # Load label data from text file
-        self.labels = pd.read_csv(label_file, header=None, sep=' ', names=['filename', 'label'])
+        # Format: speaker_id filename - - label
+        # Example: LA_0079 LA_T_1138215 - - bonafide
+        self.labels = pd.read_csv(
+            label_file, 
+            header=None, 
+            sep=' ', 
+            names=['speaker_id', 'filename', 'col3', 'col4', 'label']
+        )
+        
+        # Keep only filename and label columns
+        self.labels = self.labels[['filename', 'label']]
 
         # Path to audio files
         self.audio_dir = audio_dir
@@ -106,7 +116,7 @@ class ASVspoofDataset(Dataset):
     def _build_file_path(self, filename):
         """
         Build the correct file path for the audio file.
-        The filename from the CSV may not have an extension, so we need to add .flac
+        The filename from the CSV is like 'LA_T_1000137' and the actual file is 'LA_T_1000137.flac'
         """
         # Check if filename already has an extension
         if not filename.endswith('.flac'):
@@ -117,12 +127,10 @@ class ASVspoofDataset(Dataset):
         
         # Verify the file exists
         if not os.path.exists(file_path):
-            # Try without extension in case the original had one
-            alt_path = os.path.join(self.audio_dir, filename.replace('.flac', ''))
-            if os.path.exists(alt_path):
-                return alt_path
-            # If still not found, raise an error with helpful message
-            raise FileNotFoundError(f"Audio file not found: {file_path}")
+            raise FileNotFoundError(
+                f"Audio file not found: {file_path}\n"
+                f"Expected filename format: LA_T_XXXXXXX.flac"
+            )
         
         return file_path
 
@@ -157,22 +165,21 @@ class ASVspoofDataset(Dataset):
         file_path = self._build_file_path(item['filename'])
         audio = self._load_audio(file_path)
 
-        # Binary label: fake -> 1, real -> 0
-        binary_label = int(item['label'])
+        # Map string labels to binary: 'bonafide' -> 0, 'spoof' -> 1
+        label_str = item['label'].strip().lower()
+        if label_str == 'bonafide':
+            binary_label = 0
+        elif label_str == 'spoof':
+            binary_label = 1
+        else:
+            raise ValueError(f"Unknown label: {item['label']}")
 
         # Create a target tensor for the onset/offset window
+        # For ASVspoof dataset, we don't have onset/offset info, so just use binary label
         tgt = np.zeros(int(self.duration / self.time_resolution))
         if binary_label == 1:
-            # Assuming labels are in format 'onset_offset' like '8.28_9.96'
-            filename_parts = item["filename"].split("_")
-            if len(filename_parts) >= 2:
-                try:
-                    onset = float(filename_parts[-2])
-                    offset = float(filename_parts[-1].replace('.flac', ''))
-                    tgt[int(onset / self.time_resolution): int(offset / self.time_resolution)] = 1
-                except (ValueError, IndexError):
-                    # If parsing fails, keep tgt as all zeros
-                    pass
+            # For spoof samples, mark the entire duration
+            tgt[:] = 1
 
         return audio, binary_label, tgt, item["filename"]
 
@@ -231,25 +238,25 @@ def main():
     label_file = "/kaggle/input/asvpoof-2019-dataset/LA/LA/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt"
     
     train_dataset = ASVspoofDataset(audio_dir, label_file, args)
+    
+    # Convert string labels to numeric BEFORE creating dataloader
+    # Map 'bonafide' -> 0, 'spoof' -> 1
+    train_dataset.labels['label_numeric'] = train_dataset.labels['label'].map({
+        'bonafide': 0,
+        'spoof': 1
+    })
+    
     train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size, collate_fn=train_dataset.collate_fn)
     print(f"[INFO] Number of training samples: {len(train_dataset)}")
 
     # Print the total number of audio files and labels
-    num_files = len(train_dataset.labels)  # Total number of labels (rows in the CSV file)
-    
-    # Convert string labels ('bonafide' -> 0, 'spoof' -> 1)
-    train_dataset.labels['label'] = train_dataset.labels['label'].map({
-        'bonafide': 0,  # 'bonafide' corresponds to real samples
-        'spoof': 1       # 'spoof' corresponds to fake samples
-    })
-    
-    # Now sum the labels to count the fake samples (1 for fake, 0 for real)
-    num_labels = sum(train_dataset.labels['label'])  # Total number of fake labels (1)
-    num_real_labels = num_files - num_labels  # Total number of real labels (0)
+    num_files = len(train_dataset.labels)
+    num_spoof = sum(train_dataset.labels['label_numeric'])
+    num_bonafide = num_files - num_spoof
     
     print(f"Total number of files: {num_files}")
-    print(f"Total number of fake labels (1): {num_labels}")
-    print(f"Total number of real labels (0): {num_real_labels}")
+    print(f"Total number of spoof (fake) samples: {num_spoof}")
+    print(f"Total number of bonafide (real) samples: {num_bonafide}")
 
     # Training loop setup
     criterion = torch.nn.BCEWithLogitsLoss()
