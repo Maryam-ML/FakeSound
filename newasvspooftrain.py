@@ -18,6 +18,8 @@ import librosa
 WORKSPACE_PATH = "/kaggle/working"  # Example, update to your path if necessary
 sys.path.extend([WORKSPACE_PATH])
 
+from models import detection_model
+
 # Define argument parser
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a deepfake audio detection model.")
