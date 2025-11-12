@@ -107,6 +107,10 @@ class ASVspoofDataset(Dataset):
         self.max_samples = int(self.duration * self.sample_rate)
         num_examples = args.num_examples
 
+        # Calculate number of frames - ensure consistent calculation
+        self.num_frames = int(self.duration / self.time_resolution)
+        print(f"[INFO] Dataset configured: {self.duration}s audio, {self.time_resolution}s resolution, {self.num_frames} frames")
+
         # If num_examples is not -1, limit dataset size
         if num_examples != -1:
             self.labels = self.labels[:num_examples]
@@ -188,8 +192,8 @@ class ASVspoofDataset(Dataset):
             raise ValueError(f"Unknown label: {item['label']}")
 
         # Create a target tensor for the onset/offset window
-        # For ASVspoof dataset, we don't have onset/offset info, so just use binary label
-        tgt = np.zeros(int(self.duration / self.time_resolution))
+        # Use the consistent num_frames calculated in __init__
+        tgt = np.zeros(self.num_frames)
         if binary_label == 1:
             # For spoof samples, mark the entire duration
             tgt[:] = 1
@@ -295,6 +299,28 @@ def main():
     print(f"  Total steps: {args.max_train_steps}")
     print(f"  Batch size: {args.batch_size}")
 
+    # Test one batch to check dimensions before starting training
+    print("\n[INFO] Testing one batch for dimension verification...")
+    model.eval()
+    with torch.no_grad():
+        test_batch = next(iter(train_dataloader))
+        audio_test, binary_label_test, tgt_test, _ = test_batch
+        output_test = model(audio_test.to(device))
+        
+        print(f"Audio input shape: {audio_test.shape}")
+        print(f"Target shape: {tgt_test.shape}")
+        print(f"Model output shape: {output_test['pred'].shape}")
+        
+        # Check if dimensions match
+        if output_test["pred"].shape[1] != tgt_test.shape[1]:
+            print(f"[WARNING] Dimension mismatch: output {output_test['pred'].shape[1]} vs target {tgt_test.shape[1]}")
+            print(f"[INFO] Adjusting target tensor to match model output...")
+            # We'll handle this in the training loop
+        else:
+            print(f"[INFO] Dimensions match perfectly!")
+    
+    model.train()
+
     progress_bar = tqdm(range(args.max_train_steps))
     completed_steps = 0
     best_loss, best_epoch = np.inf, 0
@@ -305,23 +331,51 @@ def main():
         total_loss = 0
         for step, batch in enumerate(train_dataloader):
             audio, binary_label, tgt, _ = batch
-            output = model(audio.to(device))
-            loss = criterion(output["pred"].squeeze(-1), tgt.to(device))
-            if hasattr(model, "multi_task_classifier"):
-                loss = (1.0 - args.multi_task_ratio) * loss + args.multi_task_ratio * criterion(
-                    output["pred_binary"].squeeze(-1), torch.tensor(binary_label, dtype=float).to(device)
+            
+            # Move to device
+            audio = audio.to(device)
+            tgt = tgt.to(device)
+            
+            # Forward pass
+            output = model(audio)
+            
+            # Handle dimension mismatch by adjusting target if necessary
+            pred_output = output["pred"].squeeze(-1)
+            if pred_output.shape[1] != tgt.shape[1]:
+                # Adjust target to match model output dimensions
+                min_frames = min(pred_output.shape[1], tgt.shape[1])
+                tgt_adjusted = tgt[:, :min_frames]
+                pred_adjusted = pred_output[:, :min_frames]
+                loss = criterion(pred_adjusted, tgt_adjusted)
+            else:
+                loss = criterion(pred_output, tgt)
+                
+            # Multi-task loss if enabled
+            if args.multi_task and hasattr(model, "multi_task_classifier"):
+                binary_loss = criterion(
+                    output["pred_binary"].squeeze(-1), 
+                    torch.tensor(binary_label, dtype=torch.float).to(device)
                 )
+                loss = (1.0 - args.multi_task_ratio) * loss + args.multi_task_ratio * binary_loss
+                
+            # Backward pass
             loss.backward()
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad()
+            
             total_loss += loss.detach().float()
             progress_bar.update(1)
             completed_steps += 1
+            
+            # Print debug info for first few steps
+            if step < 3 and epoch == 0:
+                print(f"  Step {step}: loss = {loss.item():.4f}, shapes - output: {pred_output.shape}, target: {tgt.shape}")
+                
         print(f"train epoch {epoch} finish!")
 
         result = {}
-        result["epoch"] = epoch,
+        result["epoch"] = epoch
         result["step"] = completed_steps
         result["train_loss"] = round(total_loss.item()/len(train_dataloader), 4)
 
